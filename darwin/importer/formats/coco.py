@@ -2,10 +2,9 @@ import json
 from pathlib import Path
 from typing import List, Optional
 
+import darwin.datatypes as dt
 import numpy as np
 from upolygon import find_contours
-
-import darwin.datatypes as dt
 
 
 def parse_file(path: Path) -> Optional[List[dt.AnnotationFile]]:
@@ -22,6 +21,7 @@ def parse_json(path, data):
     image_lookup_table = {image["id"]: image for image in data["images"]}
     category_lookup_table = {category["id"]: category for category in data["categories"]}
     image_annotations = {}
+    image_tags = {}
 
     for annotation in annotations:
         image_id = annotation["image_id"]
@@ -31,11 +31,25 @@ def parse_json(path, data):
             image_annotations[image_id] = []
         image_annotations[image_id].append(parse_annotation(annotation, category_lookup_table))
 
+    for tag in data["tag_categories"]:
+        image_id = tag["image_id"]
+        if image_id not in image_tags:
+            image_tags[image_id] = []
+        image_tags[image_id].append(dt.make_tag(tag["name"]))
+
     for image_id in image_annotations.keys():
         image = image_lookup_table[image_id]
         annotations = list(filter(None, image_annotations[image_id]))
         annotation_classes = set([annotation.annotation_class for annotation in annotations])
         yield dt.AnnotationFile(path, image["file_name"], annotation_classes, annotations)
+
+    for image_id in image_tags.keys():
+        print(image_id, image_tags[image_id])
+        image = image_lookup_table[image_id]
+        annotation_classes = set([
+            annotation.annotation_class
+            for annotation in image_tags[image_id]])
+        yield dt.AnnotationFile(path, image["file_name"], annotation_classes, image_tags[image_id])
 
 
 def parse_annotation(annotation, category_lookup_table):
